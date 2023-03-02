@@ -9,6 +9,8 @@ root = tk.Tk()
 ws = root.winfo_screenwidth() # width of the screen
 hs = root.winfo_screenheight() # height of the screen
 
+print(ws)
+print(hs)
 
 root.title("coralScope")
 # create a full screen window
@@ -23,7 +25,7 @@ img = tk.Label(image=render)
 img.image = render
 img.place(x=25, y=25)
 
-# Status text
+# Logo Text Label
 logo_label = tk.Label(root, text="CoralScope",font=("Arial", 25))
 logo_label.place(x=150, y=25)
 
