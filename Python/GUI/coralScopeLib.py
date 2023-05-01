@@ -4,7 +4,7 @@ import time
 from PIL import Image, ImageTk
 from datetime import datetime
 import RPi.GPIO as GPIO
-
+import subprocess
 # for sensors
 import bme280
 import ms5837
@@ -49,54 +49,88 @@ class coralScopeApp():
 
         self.ms5837sensor = ms5837.MS5837_30BA()
         self.adc = Adafruit_ADS1x15.ADS1115()
-        try:
-            self.ms5837sensor.init()
-            print("Successfully initialize MS5837")
-            self.ms5837_stat = True
-            self.ms5837data = [0,0]
-        except Exception:
-            print("Fail to initialize MS5837")
-            self.ms5837_stat = False
-            self.ms5837data = [-1,-1]
+        
 
-        try:
-            self.bme280data = bme280.readBME280All()
-            print("Successfully initialize bme280")
-            self.bme280_stat = True
-        except Exception:
-            print("Fail to initialize BME280")
-            self.bme280_stat = False
-            self.bme280data = [-1,-1,-1,-1]
+        # Initialize output directory
+        if not os.path.exists(self.dir+'videos/'):
+            print("Videos folder not found. Making the folder ...")
+            os.mkdir(self.dir+'videos/')
+        if not os.path.exists(self.dir+'frames/'):
+            print("Frames folder not found. Making the folder ...")
+            os.mkdir(self.dir+'frames/')
+        if not os.path.exists(self.dir+'sensors/'):
+            print("Sensors folder not found. Making the folder ...")
+            os.mkdir(self.dir+'sensors/')
 
-        try:
-            self.adc.read_adc(0, gain=1)
-            print("Successfully initialize ADC")
-            self.adc_stat = True
-            self.vbatt = 0
-        except Exception:
-            print("Fail to initialize BME280")
-            self.adc_stat = False
-            self.vbatt = -1
+        # file for data logging
+        self.data_log_file = self.dir + 'sensors/%d.csv'%time.time()
 
         # GPIO assignment
-        self.push_pin = 5
-        self.push2_pin = 6
+        self.push_pin = [5,6]
         self.strobe_en_pin = 26 
         self.trigger_pin = 13
         self.led_en_pin = 10
         self.dim_pin = 18
+        self.fan_pin = 27
 
     def GPIOinit(self):
 
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(self.strobe_en_pin, GPIO.OUT)
         GPIO.setup(self.trigger_pin, GPIO.IN)
-        GPIO.setup(self.push_pin, GPIO.IN)
         GPIO.setup(self.led_en_pin, GPIO.OUT)
+
+        for push_pin_num in self.push_pin:
+            GPIO.setup(push_pin_num, GPIO.IN)
 
         # strobe is enabled by default
         GPIO.output(self.strobe_en_pin,GPIO.LOW) # active low
         GPIO.output(self.led_en_pin,GPIO.HIGH) # active high
+
+        # fan pin
+        GPIO.setup(self.fan_pin, GPIO.OUT)
+        GPIO.output(self.fan_pin,GPIO.HIGH)
+
+    def sensorsInit(self,n_try=10):
+
+        cnt = 0
+        while(cnt<n_try):
+            try:
+                self.ms5837sensor.init()
+                print("Successfully initialize MS5837")
+                self.ms5837_stat = True
+                self.ms5837data = [0,0]
+                break
+            except Exception:
+                print("Fail to initialize MS5837: %d"%cnt)
+                self.ms5837_stat = False
+                self.ms5837data = [-1,-1]
+
+        cnt = 0
+        while(cnt<n_try):
+            try:
+                self.bme280data = bme280.readBME280All()
+                print("Successfully initialize bme280")
+                self.bme280_stat = True
+                break
+            except Exception:
+                print("Fail to initialize BME280: %d"%cnt)
+                self.bme280_stat = False
+                self.bme280data = [-1,-1,-1,-1]
+
+        cnt = 0
+        while(cnt<n_try):
+            try:
+                self.adc.read_adc(0, gain=1)
+                print("Successfully initialize ADC")
+                self.adc_stat = True
+                self.vbatt = 0
+                break
+            except Exception:
+                print("Fail to initialize ADC: %d"%cnt)
+                self.adc_stat = False
+                self.vbatt = -1
+
 
     def readBattery(self,read_adc=False):
         if read_adc:
@@ -114,12 +148,23 @@ class coralScopeApp():
         if read_bme280:
             self.bme280data = bme280.readBME280All()
 
-    def runGUI(self,w=800,h=480,logo_dir="coralscope_logo.png" ):
+    def logData(self):
+        data_str = '%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f\n'%(time.time(),self.vbatt,self.ms5837data[0],self.ms5837data[1],
+            self.bme280data[0],self.bme280data[1],self.bme280data[2],self.bme280data[3])
+        f = open(self.data_log_file, "a")
+        f.write(data_str)
+        f.close()
+
+
+    def runGUI(self,w=800,h=480,logo_dir=''):
         self.w = w # window width
         self.h = h # window height
         
         self.root = tk.Tk() # main GUI object
         
+        # -- Microscope Parameters --
+        self.setMode('highres')
+
         #---------- App Components ---------#
         self.root.title("coralScope")
         # create a full screen window
@@ -127,12 +172,13 @@ class coralScopeApp():
         # root.configure(bg='white')
 
         # display logo
-        load = Image.open(logo_dir)
-        resize_image  = load.resize((100,100))
-        render = ImageTk.PhotoImage(resize_image)
-        img = tk.Label(image=render)
-        img.image = render
-        img.place(x=25, y=25)
+        if not logo_dir == '':
+            load = Image.open(self.dir+logo_dir)
+            resize_image  = load.resize((100,100))
+            render = ImageTk.PhotoImage(resize_image)
+            img = tk.Label(image=render)
+            img.image = render
+            img.place(x=25, y=25)
 
         # Logo Text Label
         self.logo_label = tk.Label(text="CoralScope",font=("Arial", 35))
@@ -203,12 +249,15 @@ class coralScopeApp():
         self.vbatt_value.configure(text="%.2f V"%self.vbatt)
 
         # read GPIO pin
-        self.updateMode()
-
-        if self.mode == 1:
+        # self.updateMode()
+        # Take video if the button is pushed
+        if self.checkPush(0):
             self.updateTime()
             self.takeVideo(t = 60000)
             time.sleep(10)
+
+        # log data
+        self.logData()
 
         self.root.after(1000,self.updateApp)
 
@@ -224,6 +273,16 @@ class coralScopeApp():
         else:
             self.mode = 0
 
+    def checkPush(self,sw_num):
+        return GPIO.input(self.push_pin[sw_num])
+
+    def setMode(self,mode_string):
+        if mode_string.casefold() == 'highres'.casefold():
+            self.mode = 1
+        elif mode_string.casefold() == 'highfps'.casefold():
+            self.mode = 0
+        else:
+            self.mode = 0
 
     def takeVideo(self,t=60000):
         '''Take video of duration tt.
@@ -237,7 +296,6 @@ class coralScopeApp():
         ret = runCmdTimeout(command,timeout=t/1000+10) # timeout is set to video duration +10s
         return ret
 
-
     def raspicamPipeline(self,tt=1000):
         '''Return bash script for executing raspistill or raspivid
         INPUT: 
@@ -247,11 +305,11 @@ class coralScopeApp():
         OUTPUT:
             string of bash script for executing raspistill/raspivid command.'''
         if self.mode==0: # for raspistill
-            return ('raspivid -n -w 1280 -h 720 '
+            return ('raspivid -w 1280 -h 720 '
                 '-awb off -awbg 0.6,1.5 -ISO 100 -fps 65 '
                 '-ss 16500 -t %d -o %svideos/%d.h264 -pts %sframes/%d.pts' %(tt,self.dir,self.time,self.dir,self.time))
         else: # for raspivid
-            return ('raspivid -n -w 1920 -h 1080 '
+            return ('raspivid -w 1920 -h 1080 '
                 '-awb off -awbg 0.6,1.5 -ISO 100 -fps 30 '
                 '-ss 16500 -t %d -o %svideos/%d.h264 -pts %sframes/%d.pts' %(tt,self.dir,self.time,self.dir,self.time))
 
