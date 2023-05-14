@@ -76,6 +76,8 @@ class coralScopeApp():
     def GPIOinit(self):
 
         GPIO.setmode(GPIO.BCM)
+        # GPIO.cleanup()
+        time.sleep(10)
         GPIO.setup(self.strobe_en_pin, GPIO.OUT)
         GPIO.setup(self.trigger_pin, GPIO.IN)
         GPIO.setup(self.led_en_pin, GPIO.OUT)
@@ -105,6 +107,7 @@ class coralScopeApp():
                 print("Fail to initialize MS5837: %d"%cnt)
                 self.ms5837_stat = False
                 self.ms5837data = [-1,-1]
+                cnt = cnt+1
 
         cnt = 0
         while(cnt<n_try):
@@ -117,6 +120,7 @@ class coralScopeApp():
                 print("Fail to initialize BME280: %d"%cnt)
                 self.bme280_stat = False
                 self.bme280data = [-1,-1,-1,-1]
+                cnt = cnt+1
 
         cnt = 0
         while(cnt<n_try):
@@ -130,6 +134,7 @@ class coralScopeApp():
                 print("Fail to initialize ADC: %d"%cnt)
                 self.adc_stat = False
                 self.vbatt = -1
+                cnt = cnt+1
 
 
     def readBattery(self,read_adc=False):
@@ -240,21 +245,28 @@ class coralScopeApp():
         self.time_label.configure(text=now_string)
 
         # read sensor data
-        self.readSensors(read_ms5837 = self.ms5837_stat,read_bme280 = self.bme280_stat)
-        self.readBattery(read_adc=self.adc_stat)
-        self.wdepth_value.configure(text="%.2f m"%self.ms5837data[0])
-        self.wtemp_value.configure(text="%.2f C"%self.ms5837data[1])
-        self.ipress_value.configure(text="%.2f bar"%self.bme280data[2])
-        self.itemp_value.configure(text="%.2f C"%self.bme280data[0])
-        self.vbatt_value.configure(text="%.2f V"%self.vbatt)
+        try:
+            self.readSensors(read_ms5837 = self.ms5837_stat,read_bme280 = self.bme280_stat)
+            self.readBattery(read_adc=self.adc_stat)
+            self.wdepth_value.configure(text="%.2f m"%self.ms5837data[0])
+            self.wtemp_value.configure(text="%.2f C"%self.ms5837data[1])
+            self.ipress_value.configure(text="%.2f bar"%self.bme280data[2])
+            self.itemp_value.configure(text="%.2f C"%self.bme280data[0])
+            self.vbatt_value.configure(text="%.2f V"%self.vbatt)
+        except Exception:
+            self.status_label.configure(text="STATUS: I2C Error",font=("Arial", 25),bg='red', fg='white')
 
         # read GPIO pin
         # self.updateMode()
         # Take video if the button is pushed
-        if self.checkPush(0):
-            self.updateTime()
-            self.takeVideo(t = 60000)
-            time.sleep(10)
+        try:
+            if self.checkPush(0):
+                self.updateTime()
+                self.takeVideo(t = 60000)
+                time.sleep(10)
+        except Exception:
+            self.status_label.configure(text="STATUS: CAM Error",font=("Arial", 25),bg='red', fg='white')
+
 
         # log data
         self.logData()
