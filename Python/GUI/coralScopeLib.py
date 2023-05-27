@@ -73,6 +73,11 @@ class coralScopeApp():
         self.dim_pin = 18
         self.fan_pin = 27
 
+        # Time keeping
+        self.shdn_cnt_sec = 10 # time to shutdown in seconds
+        self.shdn_start_t = time.time()
+        self.shdn_flag = False
+
     def GPIOinit(self):
 
         GPIO.setmode(GPIO.BCM)
@@ -267,6 +272,24 @@ class coralScopeApp():
         except Exception:
             self.status_label.configure(text="STATUS: CAM Error",font=("Arial", 25),bg='red', fg='white')
 
+        # shutdown button
+        try:
+            if self.checkPush(1):
+                if self.shdn_flag:
+                    time_elapse = time.time()-self.shdn_start_t
+                    # print(self.shdn_cnt_sec-time_elapse)
+                    self.status_label.configure(text="Shutdown in %d s"%(self.shdn_cnt_sec-time_elapse),font=("Arial", 25),bg='blue', fg='white')
+                    if time_elapse > self.shdn_cnt_sec:
+                        self.root.destroy()
+                else:
+                    self.shdn_flag = True
+                    self.shdn_start_t = time.time()
+            else:
+                self.shdn_flag = False
+                self.shdn_start_t = time.time()
+                self.status_label.configure(text="STATUS: OK",font=("Arial", 25),bg='green', fg='white')
+        except Exception:
+            self.status_label.configure(text="STATUS: Shutdown Error",font=("Arial", 25),bg='red', fg='white')
 
         # log data
         self.logData()

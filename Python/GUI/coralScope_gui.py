@@ -8,7 +8,11 @@ logging.basicConfig(filename=main_folder+'coralScope_gui.log', level=logging.DEB
 logger=logging.getLogger(__name__)
 
 # wait for desktop to stabilize
-time.sleep(10)
+cnt = 0
+while(cnt<5):
+	print(cnt)
+	cnt = cnt+1
+	time.sleep(1)
 
 try:
 	app = coralScopeApp(main_folder)
@@ -19,3 +23,5 @@ except Exception as err:
 	print(err)
 	# log error to file
 	logger.error(err)
+
+print("End of program...")
