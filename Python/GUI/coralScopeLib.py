@@ -347,6 +347,3 @@ class coralScopeApp():
             return ('raspivid -w 1920 -h 1080 '
                 '-awb off -awbg 0.6,1.5 -ISO 100 -fps 30 '
                 '-ss 16500 -t %d -o %svideos/%d.h264 -pts %sframes/%d.pts' %(tt,self.dir,self.time,self.dir,self.time))
-
-        
-        
