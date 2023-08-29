@@ -255,9 +255,25 @@ class coralScopeApp():
             self.readBattery(read_adc=self.adc_stat)
             self.wdepth_value.configure(text="%.2f m"%self.ms5837data[0])
             self.wtemp_value.configure(text="%.2f C"%self.ms5837data[1])
-            self.ipress_value.configure(text="%.2f bar"%self.bme280data[2])
-            self.itemp_value.configure(text="%.2f C"%self.bme280data[0])
-            self.vbatt_value.configure(text="%.2f V"%self.vbatt)
+
+            # Internal Pressure
+            if self.bme280data[2] < -50:
+                self.ipress_value.configure(text="%.2f bar"%self.bme280data[2],bg='green', fg='black')
+            else:
+                self.ipress_value.configure(text="%.2f bar"%self.bme280data[2],bg='red', fg='white')
+
+            # Internal Temperature
+            if self.bme280data[2] < -50:
+                self.itemp_value.configure(text="%.2f C"%self.bme280data[0],bg='green', fg='black')
+            else:
+                self.itemp_value.configure(text="%.2f C"%self.bme280data[0],bg='red', fg='white')
+
+            # Battery
+            if self.bme280data[2] > 14.5:
+                self.vbatt_value.configure(text="%.2f V"%self.vbatt,bg='green', fg='black')
+            else:
+                self.vbatt_value.configure(text="%.2f V"%self.vbatt,bg='red', fg='white')
+
         except Exception:
             self.status_label.configure(text="STATUS: I2C Error",font=("Arial", 25),bg='red', fg='white')
 
