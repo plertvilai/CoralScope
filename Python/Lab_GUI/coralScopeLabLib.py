@@ -74,6 +74,9 @@ class coralScopeLabApp():
         self.shdn_start_t = time.time()
         self.shdn_flag = False
 
+        # for limits
+        self.max_duration = 120 # max video duration in seconds
+
     def GPIOinit(self):
 
         GPIO.setmode(GPIO.BCM)
@@ -128,7 +131,7 @@ class coralScopeLabApp():
         
         self.root = tk.Tk() # main GUI object
         
-        self.strobe_stat = tk.IntVar()
+        self.strobe_stat = tk.IntVar(None, 1)
         
         #---------- App Components ---------#
         self.root.title("coralScope")
@@ -147,6 +150,13 @@ class coralScopeLabApp():
         # Logo Text Label
         self.logo_label = tk.Label(text="CoralScope Lab",font=("Arial", 35))
         self.logo_label.place(x=150, y=25)
+
+        # Message Test Box
+        self.message_box_label = tk.Label(text="Message",font=("Arial", 15))
+        self.message_box_label.place(x=550, y=75)
+        self.message_box = tk.Text(height = 7, width = 30,font=("Arial", 10))
+        self.message_box.place(x=550, y=100)
+        self.message_box.config(state='disabled')
         
         # version label
         self.version_label = tk.Label(text="v1.0",font=("Arial", 15))
@@ -206,6 +216,15 @@ class coralScopeLabApp():
 
         self.root.after(1000,self.updateApp)
 
+    def updateMessage(self,message='\n',clear=False):
+        '''Update the message to the message box.'''
+        # get timestamp
+        now_string = time.strftime("[%H:%M:%S] ")
+        self.message_box.configure(state='normal') # need to enable change first
+        self.message_box.insert('end', now_string + message + '\n')
+        self.message_box.configure(state='disabled') # disable change
+        self.message_box.see('end') # scroll to the end of message box
+
     def updateTime(self):
         '''Update timestamp of dIPAX.
         Return current unix timestamp in seconds'''
@@ -229,16 +248,21 @@ class coralScopeLabApp():
         else:
             self.mode = 0
 
-    def takeVideo(self,t=60000):
+    def takeVideo(self,duration_s=60):
         '''Take video of duration tt.
         INPUT: 
-            tt = duration of raspistill/raspivid execution in milliseconds
+            duration_s = duration of raspistill/raspivid execution in seconds
         OUTPUT:
             ret = (boolean) True if command is successfully executed. False if there is an error
             '''
-        command = self.raspicamPipeline(tt=t)
+        # First check whether duration exceeds the max value
+        if duration_s > self.max_duration:
+            self.updateMessage(message='Duration exceed max. Set to max.')
+            duration_s = self.max_duration
+        duration_ms = duration_s*1000 # convert from seconds to milliseconds
+        command = (self.raspicamPipeline(duration_ms))
         print(command)
-        ret = runCmdTimeout(command,timeout=t/1000+10) # timeout is set to video duration +10s
+        ret = runCmdTimeout(command,timeout=duration_ms/1000+10) # timeout is set to video duration +10s
         return ret
 
     def raspicamPipeline(self,tt=1000):
@@ -264,20 +288,30 @@ class coralScopeLabApp():
 
     def strobeOFF(self):
         print("Strobe OFF")
+        self.updateMessage(message='Strobe OFF.')
         GPIO.output(self.led_en_pin,GPIO.LOW)
         
     def strobeON(self):
         print("Strobe ON")
+        self.updateMessage(message='Strobe ON.')
         GPIO.output(self.led_en_pin,GPIO.HIGH)
         
     def previewCamera(self):
+        self.status_label.config(text="STATUS: Preview in Progress",font=("Arial", 25),bg='orange', fg='white')
+        self.root.update_idletasks()
         self.mode = 99 # set mode to preview
         duration_str = self.preview_seconds.get()
-        duration_value = int(duration_str)
-        print(self.raspicamPipeline(duration_value))
+        ret = self.takeVideo(int(duration_str))
+        time.sleep(2) # wait for camera closing
+        self.status_label.config(text="STATUS: OK",font=("Arial", 25),bg='green', fg='white')
+        return ret
         
     def recordVideo(self):
+        self.status_label.config(text="STATUS: Preview in Progress",font=("Arial", 25),bg='orange', fg='white')
+        self.root.update_idletasks()
         self.mode = 1 # set mode to high res recording
         duration_str = self.record_seconds.get()
-        duration_value = int(duration_str)
-        print(self.raspicamPipeline(duration_value))
+        ret = self.takeVideo(int(duration_str))
+        time.sleep(2) # wait for camera closing
+        self.status_label.config(text="STATUS: OK",font=("Arial", 25),bg='green', fg='white')
+        return ret
