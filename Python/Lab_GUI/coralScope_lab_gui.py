@@ -21,7 +21,7 @@ try:
 	app = coralScopeLabApp(main_folder)
 	app.GPIOinit()
 	app.sensorsInit()
-	app.runGUI(logo_dir="coralscope_logo.png" )
+	app.runGUI(logo_dir=main_folder+"coralscope_logo.png" )
 except Exception as err: 
 	print(err)
 	# log error to file
