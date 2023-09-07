@@ -38,6 +38,11 @@ def runShellTimeout(cmd, timeout=15):
             success = False
     return success
 
+def set_text(target,text):
+    target.delete(0,'end')
+    target.insert(0,text)
+    return
+
 class coralScopeLabApp():
 
     def __init__(self,outputDir):
@@ -50,7 +55,9 @@ class coralScopeLabApp():
         # Initialize output directory
         if not os.path.exists(self.dir+'videos/'):
             print("Videos folder not found. Making the folder ...")
-            os.mkdir(self.dir+'videos/')
+        if not os.path.exists(self.dir+'mp4/'):
+            print("MP4 folder not found. Making the folder ...")
+            os.mkdir(self.dir+'mp4/')
         if not os.path.exists(self.dir+'frames/'):
             print("Frames folder not found. Making the folder ...")
             os.mkdir(self.dir+'frames/')
@@ -76,6 +83,7 @@ class coralScopeLabApp():
 
         # for limits
         self.max_duration = 120 # max video duration in seconds
+        self.min_duration = 10 # min video duration in seconds
 
     def GPIOinit(self):
 
@@ -178,21 +186,38 @@ class coralScopeLabApp():
         self.preview_button.place(x=300, y=250)
         
         self.preview_button_s = tk.Label(self.root, text ="S",font=("Arial", 25))
-        self.preview_button_s.place(x=200, y=260)
+        self.preview_button_s.place(x=200, y=250)
         
         self.preview_seconds = tk.Entry(self.root,width = 5,font=("Arial", 25))
         self.preview_seconds.insert(0,"30")
-        self.preview_seconds.place(x=100, y=260)
+        self.preview_seconds.place(x=100, y=250)
+
+        self.preview_button_plus = tk.Button(self.root, text ="+",font=("Arial", 25), command = self.preview_add)
+        self.preview_button_plus.place(x=240, y=250)
+
+        self.preview_button_minus = tk.Button(self.root, text ="-",font=("Arial", 25), command = self.preview_sub)
+        self.preview_button_minus.place(x=50, y=250)
+
         # Record button
         self.record_button = tk.Button(self.root, text ="RECORD",font=("Arial", 25), command = self.recordVideo)
         self.record_button.place(x=300, y=350)
         
         self.record_button_s = tk.Label(self.root, text ="S",font=("Arial", 25))
-        self.record_button_s.place(x=200, y=360)
+        self.record_button_s.place(x=200, y=350)
         
         self.record_seconds = tk.Entry(self.root,width = 5,font=("Arial", 25))
         self.record_seconds.insert(0,"30")
-        self.record_seconds.place(x=100, y=360)
+        self.record_seconds.place(x=100, y=350)
+
+        self.record_button_plus = tk.Button(self.root, text ="+",font=("Arial", 25), command = self.record_add)
+        self.record_button_plus.place(x=240, y=350)
+
+        self.record_button_minus = tk.Button(self.root, text ="-",font=("Arial", 25), command = self.record_sub)
+        self.record_button_minus.place(x=50, y=350)
+
+        # Shutdown button
+        self.shdn_button = tk.Button(self.root, text ="Shutdown",font=("Arial", 20), command = self.shutdownPopup)
+        self.shdn_button.place(x=550, y=350)
         
         # Strobe radio button
         strobe_options = {'Strobe OFF':'0', 'Strobe ON':'1'}
@@ -286,6 +311,50 @@ class coralScopeLabApp():
                 '-awb off -awbg 0.6,1.5 -ISO 100 -fps 30 '
                 '-ss 16500 -t %d' %(tt))
 
+    def mp4boxPipeline(self):
+        '''Return a string for bash script to convert a h264 video to mp4'''
+        return ('MP4Box -add %svideos/%d.h264 %smp4/%d.mp4')%(self.dir,self.time,self.dir,self.time)
+
+    def mp4convert(self):
+        command = (self.mp4boxPipeline())
+        print(command)
+        ret = runCmdTimeout(command,timeout=70)
+        return ret
+
+    def shutdownCommandExecute(self):
+        command = 'sudo shutdown -h now'
+        print(command)
+        ret = runCmdTimeout(command,timeout=10)
+        return ret
+
+    def changeDuration(self,target,val=10):
+        cur_duration = int(target.get())
+        new_duration = cur_duration + val # increment the duration
+
+        # print('current duration = %d'%cur_duration)
+        # print('new duration = %d'%new_duration)
+
+        if new_duration > self.max_duration: # cap at max value
+            new_duration = self.max_duration
+        if new_duration < self.min_duration: # cap at min value
+            new_duration = self.min_duration
+
+        # set the value
+        set_text(target,str(new_duration))
+
+    def preview_add(self):
+        self.changeDuration(self.preview_seconds,10)
+
+    def preview_sub(self):
+        self.changeDuration(self.preview_seconds,-10)
+
+    def record_add(self):
+        self.changeDuration(self.record_seconds,10)
+
+    def record_sub(self):
+        self.changeDuration(self.record_seconds,-10)
+
+
     def strobeOFF(self):
         print("Strobe OFF")
         self.updateMessage(message='Strobe OFF.')
@@ -306,12 +375,38 @@ class coralScopeLabApp():
         self.status_label.config(text="STATUS: OK",font=("Arial", 25),bg='green', fg='white')
         return ret
         
-    def recordVideo(self):
+    def recordVideo(self,mp4convert=True):
+        self.updateTime() # update the timestamp to name output files
+        # Display status on GUI
         self.status_label.config(text="STATUS: Preview in Progress",font=("Arial", 25),bg='orange', fg='white')
         self.root.update_idletasks()
+        # Setmode
         self.mode = 1 # set mode to high res recording
+        # Get duration from GUI
         duration_str = self.record_seconds.get()
+        # Record video
         ret = self.takeVideo(int(duration_str))
         time.sleep(2) # wait for camera closing
+        # Convert video to MP4
+        if mp4convert:
+            self.mp4convert()
+        # Update status on GUI
         self.status_label.config(text="STATUS: OK",font=("Arial", 25),bg='green', fg='white')
+
+        #show message
+        message = 'Finished recording video: %d.h264'%(self.time)
+        self.updateMessage(message=message)
         return ret
+
+    def closePopup(self):
+        self.sdhn_popup.destroy()
+
+    def shutdownPopup(self):
+        self.sdhn_popup= tk.Toplevel(self.root)
+        self.sdhn_popup.geometry("350x250+%d+%d"%(self.w/2-200,self.h/2-100))
+        self.sdhn_popup.title("SHDN")
+        shdn_press = tk.Button(self.sdhn_popup, text ="Shutdown",font=("Arial", 30), command = self.shutdownCommandExecute,bg='red', fg='white')
+        shdn_press.place(x=20,y=20)
+
+        shdn_cancel = tk.Button(self.sdhn_popup, text ="Cancel",font=("Arial", 30), command = self.closePopup,bg='black', fg='white')
+        shdn_cancel.place(x=20,y=130)
