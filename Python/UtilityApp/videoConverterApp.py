@@ -27,8 +27,14 @@ class videoApp():
         self.w = w # window width
         self.h = h # window height
         
-        self.logo_dir = "coralscope_logo.png"
-        
+        try:
+            bundle_dir = getattr(sys, '_MEIPASS', os.path.abspath(os.path.dirname(__file__)))
+            logo_file = "logo_bw.png"
+            self.logo_dir = os.path.abspath(os.path.join(bundle_dir,logo_file))
+            print(self.logo_dir)
+        except Exception:
+            print("Failed to get local path")
+            self.logo_dir = ""
         self.root = tk.Tk() # main GUI object
         
     def runGUI(self):
@@ -38,12 +44,15 @@ class videoApp():
         self.root.geometry('%dx%d+%d+%d' % (self.w, self.h, 0, 0))
         
         # display logo
-        load = Image.open(resource_path(self.logo_dir))
-        resize_image  = load.resize((100,100))
-        render = ImageTk.PhotoImage(resize_image)
-        img = tk.Label(image=render)
-        img.image = render
-        img.place(x=25, y=25)
+        try:
+            load = Image.open(resource_path(self.logo_dir))
+            resize_image  = load.resize((100,100))
+            render = ImageTk.PhotoImage(resize_image)
+            img = tk.Label(image=render)
+            img.image = render
+            img.place(x=25, y=25)
+        except Exception:
+            print('Load logo failed.')
 
         # Logo Text Label
         self.logo_label = tk.Label(text="CoralScope",font=("Arial", 25))
